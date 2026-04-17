@@ -29,7 +29,9 @@ import {
   AlertTriangle,
   Loader2,
   RefreshCw,
-  Check
+  Check,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { clsx } from 'clsx';
@@ -39,7 +41,8 @@ function cn(...inputs) {
   return twMerge(clsx(inputs));
 }
 
-const CATEGORIES = ["Todos", "Literatura", "Ciência", "História", "Tecnologia"];
+// Categorias atualizadas conforme pedido pelo Sérgio
+const CATEGORIES = ["Todos", "Clássicos", "Romance", "Conto", "Crônica", "Poesia"];
 
 export default function App() {
   const [activeCategory, setActiveCategory] = useState("Todos");
@@ -63,7 +66,7 @@ export default function App() {
 
   // Form states
   const [formData, setFormData] = useState({ 
-    title: '', author: '', category: 'Literatura', format: 'PDF', coverUrl: '', synopsis: '', ebookUrl: '', ebookFile: null 
+    title: '', author: '', category: 'Clássicos', format: 'PDF', coverUrl: '', synopsis: '', ebookUrl: '', ebookFile: null 
   });
 
   const books = useLiveQuery(() => {
@@ -72,7 +75,6 @@ export default function App() {
       query = query.where('category').equals(activeCategory);
     }
     return query.toArray().then(data => {
-      // Ordena por timestamp decrescente (mais novos primeiro)
       const sorted = data.sort((a,b) => (b.timestamp || 0) - (a.timestamp || 0));
       if (!searchTerm) return sorted;
       return sorted.filter(b => 
@@ -82,7 +84,6 @@ export default function App() {
     });
   }, [activeCategory, searchTerm]) || [];
 
-  // SINCRONIZAÇÃO INICIAL (Puxa da Nuvem ao abrir)
   const loadCloudData = async () => {
     setIsSyncing(true);
     await pullFromCloud();
@@ -93,7 +94,6 @@ export default function App() {
     loadCloudData();
   }, []);
 
-  // Monitorar conexão
   useEffect(() => {
     const handleStatus = () => setIsOnline(navigator.onLine);
     window.addEventListener('online', handleStatus);
@@ -126,7 +126,7 @@ export default function App() {
       });
       setEditingId(book.id);
     } else {
-      setFormData({ title: '', author: '', category: 'Literatura', format: 'PDF', coverUrl: '', synopsis: '', ebookUrl: '', ebookFile: null });
+      setFormData({ title: '', author: '', category: 'Clássicos', format: 'PDF', coverUrl: '', synopsis: '', ebookUrl: '', ebookFile: null });
       setEditingId(null);
     }
     setShowModal(true);
@@ -137,14 +137,7 @@ export default function App() {
     if (!formData.title || !formData.author) return;
     setIsSyncing(true);
     try {
-      if (editingId) {
-        // Para simplificar, o Update via UI também faz um Push novo ou substitui
-        // Aqui estamos usando pushToCloud que cria um novo registro
-        // Em um app completo teríamos updateCloud. Mas para Sergio, o Push resolve.
-        await pushToCloud(formData, formData.ebookFile);
-      } else {
-        await pushToCloud(formData, formData.ebookFile);
-      }
+      await pushToCloud(formData, formData.ebookFile);
       setShowModal(false);
       setSelectedBook(null);
     } catch (error) {
@@ -155,7 +148,7 @@ export default function App() {
 
   const handleDelete = async (book, e) => {
     e.preventDefault(); e.stopPropagation();
-    if (window.confirm("Remover esta obra da nuvem e do app?")) {
+    if (window.confirm("Remover esta obra definitivamente?")) {
       setIsSyncing(true);
       await deleteBook(book.id, book.supabase_id);
       setSelectedBook(null);
@@ -172,7 +165,6 @@ export default function App() {
       setLoginError(false);
     } else {
       setLoginError(true);
-      setTimeout(() => setLoginError(false), 2000);
     }
   };
 
@@ -189,99 +181,111 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#FDFDFD] text-[#1D1D1F] font-sans selection:bg-blue-100 pb-24">
+    <div className="min-h-screen bg-[#F8FAFC] text-[#1E293B] font-sans selection:bg-blue-100 flex flex-col">
       
       {/* Indicador de Sincronização */}
       <AnimatePresence>
         {isSyncing && (
-           <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-2 shadow-2xl">
-              <RefreshCw size={12} className="animate-spin" /> Sincronizando com a Nuvem...
+           <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="fixed top-24 left-1/2 -translate-x-1/2 z-50 bg-blue-600 text-white px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-2 shadow-xl shadow-blue-500/20">
+              <RefreshCw size={12} className="animate-spin" /> Atualizando Biblioteca...
            </motion.div>
         )}
       </AnimatePresence>
 
-      <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-xl border-b border-slate-100">
+      <header className="sticky top-0 z-40 bg-white/90 backdrop-blur-2xl border-b border-slate-100">
         <div className="px-5 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
-             <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white shadow-lg"><Library size={22} /></div>
-             <div><h1 className="text-lg font-black tracking-tight leading-none">EduShelf</h1><div className="flex items-center gap-1 mt-0.5"><div className={cn("w-1.5 h-1.5 rounded-full", isOnline ? "bg-emerald-500" : "bg-rose-500")} /><span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none">{isOnline ? 'Cloud Sync Ativo' : 'Modo Offline'}</span></div></div>
+             <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-blue-200"><Library size={22} /></div>
+             <div><h1 className="text-lg font-black tracking-tight leading-none text-slate-900">Biblioteca LPT</h1><div className="flex items-center gap-1 mt-0.5"><div className={cn("w-1.5 h-1.5 rounded-full", isOnline ? "bg-emerald-500" : "bg-rose-500")} /><span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{isOnline ? 'Online' : 'Offline'}</span></div></div>
           </div>
           <div className="flex items-center gap-2">
-            <button onClick={loadCloudData} className="w-10 h-10 bg-slate-100 text-slate-400 rounded-xl flex items-center justify-center hover:text-blue-600 transition-colors"><RefreshCw size={18} /></button>
-            <button onClick={() => isLoggedIn ? setIsLoggedIn(false) : setShowLoginModal(true)} className={cn("w-10 h-10 rounded-xl flex items-center justify-center", isLoggedIn ? "bg-amber-100 text-amber-600" : "bg-slate-100 text-slate-400")}>{isLoggedIn ? <Unlock size={20} /> : <User size={20} />}</button>
+            <button onClick={loadCloudData} className="w-9 h-9 bg-slate-50 text-slate-400 rounded-xl flex items-center justify-center hover:bg-white hover:text-blue-600 shadow-sm transition-all active:scale-90"><RefreshCw size={16} /></button>
+            <button onClick={() => isLoggedIn ? setIsLoggedIn(false) : setShowLoginModal(true)} className={cn("w-9 h-9 rounded-xl flex items-center justify-center shadow-sm transition-all active:scale-90", isLoggedIn ? "bg-amber-100 text-amber-600" : "bg-slate-50 text-slate-400")}>{isLoggedIn ? <Unlock size={18} /> : <User size={18} />}</button>
           </div>
         </div>
-        <div className="px-5 pb-3 pt-1"><div className="relative"><Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} /><input type="text" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="Buscar livros na nuvem..." className="w-full bg-slate-100 border-none rounded-2xl py-3 pl-12 pr-4 text-sm font-medium outline-none" /></div></div>
-        <div className="px-5 border-t border-slate-50"><div className="flex items-center gap-6 h-12 overflow-x-auto scrollbar-hide">{CATEGORIES.map((cat) => (<button key={cat} onClick={() => setActiveCategory(cat)} className={cn("relative h-full flex items-center text-sm font-bold transition-all px-1", activeCategory === cat ? "text-blue-600" : "text-slate-400")}>{cat}{activeCategory === cat && <motion.div layoutId="nav_v8" className="absolute bottom-0 left-0 right-0 h-1 bg-blue-600 rounded-full" />}</button>))}</div></div>
+        <div className="px-5 pb-3 pt-1"><div className="relative"><Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} /><input type="text" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="Busque por título ou autor..." className="w-full bg-slate-100/50 border border-slate-200/50 rounded-2xl py-3 pl-12 pr-4 text-sm font-medium outline-none focus:bg-white focus:ring-2 focus:ring-blue-500/5 transition-all shadow-inner" /></div></div>
+        <div className="px-5 pb-1"><div className="flex items-center gap-5 h-10 overflow-x-auto scrollbar-hide">{CATEGORIES.map((cat) => (<button key={cat} onClick={() => setActiveCategory(cat)} className={cn("relative h-full flex items-center text-xs font-black transition-all px-1 whitespace-nowrap uppercase tracking-widest", activeCategory === cat ? "text-blue-600" : "text-slate-400")}>{cat}{activeCategory === cat && <motion.div layoutId="nav_v9" className="absolute bottom-0 left-0 right-0 h-1 bg-blue-600 rounded-full" />}</button>))}</div></div>
       </header>
 
-      <main className="px-5 py-6">
+      <main className="px-5 py-6 flex-1">
         {books.length === 0 && !isSyncing && (
-          <div className="flex flex-col items-center justify-center py-20 text-center opacity-40">
+          <div className="flex flex-col items-center justify-center py-20 text-center opacity-30">
             <Library size={48} className="mb-4" />
-            <p className="text-sm font-bold uppercase tracking-widest">Nenhuma obra na sua estante</p>
-            <p className="text-[10px] mt-1 uppercase tracking-widest">Toque em recarregar ou adicione uma nova</p>
+            <p className="text-sm font-black uppercase tracking-widest">Estante em Branco</p>
           </div>
         )}
         <div className="grid grid-cols-2 gap-5 md:grid-cols-3 lg:grid-cols-4">
             {books.map((book) => (
-            <motion.div key={book.id} layout initial={{ opacity: 0 }} animate={{ opacity: 1 }} onClick={() => setSelectedBook(book)} className="group relative cursor-pointer">
-                <div className="relative aspect-[3/4] rounded-[1.5rem] overflow-hidden shadow-sm border border-slate-100 bg-white mb-3">
-                    <img src={book.coverUrl || "https://images.unsplash.com/photo-1543004471-240ce445c5ce"} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                    <div className="absolute top-3 right-3"><div className="bg-emerald-500 p-1 rounded-full text-white shadow-lg shadow-emerald-200"><Check size={10} /></div></div>
-                    {(book.ebookUrl || book.ebookFile) && (<div className="absolute bottom-3 left-3 bg-blue-600 p-1.5 rounded-lg text-white shadow-lg flex items-center gap-1">{book.ebookFile ? <FileText size={14} /> : <BookOpen size={14} />}<span className="text-[8px] font-black uppercase">{isEpubFlag(book) ? 'EPUB' : 'PDF'}</span></div>)}
+            <motion.div key={book.id} layout initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} onClick={() => setSelectedBook(book)} className="group relative cursor-pointer">
+                <div className="relative aspect-[3/4] rounded-[1.5rem] overflow-hidden shadow-md border border-white bg-white mb-3">
+                    <img src={book.coverUrl || "https://images.unsplash.com/photo-1543004471-240ce445c5ce"} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out" />
+                    <div className="absolute top-3 right-3"><div className="bg-emerald-500 p-1 rounded-full text-white shadow-lg shadow-emerald-200 ring-2 ring-white"><Check size={8} /></div></div>
+                    {(book.ebookUrl || book.ebookFile) && (<div className="absolute bottom-3 left-3 bg-slate-900/40 backdrop-blur-md p-1.5 rounded-lg text-white flex items-center gap-1 border border-white/20">{book.ebookFile ? <Download size={12} /> : <BookOpen size={12} />}<span className="text-[7px] font-black uppercase tracking-tighter">{isEpubFlag(book) ? 'EPUB' : 'PDF'}</span></div>)}
                 </div>
-                <div className="px-1"><h3 className="text-xs font-black text-slate-900 leading-tight mb-0.5 line-clamp-2">{book.title}</h3><p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest truncate">{book.author}</p></div>
+                <div className="px-1"><h3 className="text-xs font-black text-slate-800 leading-tight mb-0.5 line-clamp-2">{book.title}</h3><p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest truncate">{book.author}</p></div>
             </motion.div>
             ))}
         </div>
       </main>
 
+      <footer className="px-5 py-8 border-t border-slate-100 bg-white text-center">
+        <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">LPT 2026 PROF. SÉRGIO ARAÚJO</p>
+        <div className="w-8 h-1 bg-blue-600/20 rounded-full mx-auto" />
+      </footer>
+
       {/* FAB */}
-      {isLoggedIn && <button onClick={() => openForm()} className="fixed bottom-6 right-6 w-14 h-14 bg-blue-600 text-white rounded-2xl shadow-2xl flex items-center justify-center z-50 active:scale-95 transition-transform shadow-blue-500/20"><Plus size={28} /></button>}
+      {isLoggedIn && <button onClick={() => openForm()} className="fixed bottom-8 right-6 w-14 h-14 bg-blue-600 text-white rounded-2xl shadow-2xl flex items-center justify-center z-50 active:scale-90 transition-transform shadow-blue-500/30"><Plus size={28} /></button>}
 
       {/* DETALHES */}
       <AnimatePresence>
         {selectedBook && (
           <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center overflow-hidden">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setSelectedBook(null)} className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm" />
-            <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: "spring", damping: 25, stiffness: 200 }} className="relative w-full max-w-lg bg-white rounded-t-[2.5rem] sm:rounded-[2.5rem] max-h-[92vh] overflow-y-auto shadow-2xl">
-              <div className="w-12 h-1.5 bg-slate-200 rounded-full mx-auto mt-4 mb-2 sm:hidden" />
-              <div className="relative aspect-[4/5] w-full"><img src={selectedBook.coverUrl || "https://images.unsplash.com/photo-1543004471-240ce445c5ce"} className="w-full h-full object-cover" /><button onClick={() => setSelectedBook(null)} className="absolute top-5 right-5 w-10 h-10 bg-black/40 backdrop-blur-md rounded-full flex items-center justify-center text-white"><X size={20} /></button></div>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setSelectedBook(null)} className="absolute inset-0 bg-slate-950/80 backdrop-blur-md" />
+            <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: "spring", damping: 25, stiffness: 200 }} className="relative w-full max-w-lg bg-white rounded-t-[3rem] sm:rounded-[2.5rem] max-h-[92vh] overflow-y-auto shadow-2xl">
+              <div className="w-12 h-1 bg-slate-200 rounded-full mx-auto mt-4 mb-2 sm:hidden" />
+              <div className="relative aspect-[4/5] w-full"><img src={selectedBook.coverUrl || "https://images.unsplash.com/photo-1543004471-240ce445c5ce"} className="w-full h-full object-cover" /><button onClick={() => setSelectedBook(null)} className="absolute top-6 right-6 w-10 h-10 bg-black/40 backdrop-blur-md rounded-full flex items-center justify-center text-white"><X size={20} /></button></div>
               <div className="p-8 pb-12">
-                <div className="flex items-center justify-between mb-4"><span className="bg-blue-50 text-blue-600 px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest">{selectedBook.category}</span>{isLoggedIn && <div className="flex gap-2"><button onClick={() => openForm(selectedBook)} className="p-2 bg-slate-100 text-blue-600 rounded-xl"><Edit2 size={16} /></button><button onClick={(e) => handleDelete(selectedBook, e)} className="p-2 bg-rose-50 text-rose-600 rounded-xl"><Trash2 size={16} /></button></div>}</div>
-                <h2 className="text-3xl font-black text-slate-900 leading-none mb-2">{selectedBook.title}</h2><p className="text-lg text-slate-400 font-bold mb-8">{selectedBook.author}</p>
-                <div className="space-y-4 mb-10"><h5 className="text-[10px] font-black text-slate-300 uppercase tracking-widest leading-none opacity-50">Resumo</h5><p className="text-slate-600 leading-relaxed font-medium text-base">{selectedBook.synopsis || "Informações em breve."}</p></div>
-                {selectedBook.ebookUrl ? (<button onClick={() => { setReadingBook(selectedBook); setSelectedBook(null); }} className="w-full bg-blue-600 text-white font-black py-5 rounded-2xl flex items-center justify-center gap-3 shadow-xl shadow-blue-500/30 active:scale-95 transition-all"><BookOpen size={20} /> Iniciar Leitura</button>) : <div className="bg-slate-50 p-4 rounded-xl text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">Somente Físico</div>}
+                <div className="flex items-center justify-between mb-4"><span className="bg-blue-50 text-blue-600 px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest">{selectedBook.category}</span>{isLoggedIn && <div className="flex gap-2"><button onClick={() => openForm(selectedBook)} className="p-2 bg-slate-50 text-blue-600 rounded-xl hover:bg-blue-50"><Edit2 size={16} /></button><button onClick={(e) => handleDelete(selectedBook, e)} className="p-2 bg-rose-50 text-rose-600 rounded-xl hover:bg-rose-100"><Trash2 size={16} /></button></div>}</div>
+                <h2 className="text-3xl font-black text-slate-900 leading-none mb-1">{selectedBook.title}</h2><p className="text-lg text-slate-400 font-bold mb-8 uppercase tracking-widest">{selectedBook.author}</p>
+                <div className="space-y-4 mb-10 text-left"><h5 className="text-[10px] font-black text-slate-300 uppercase tracking-widest opacity-50">Sobre a Obra</h5><p className="text-slate-600 leading-relaxed font-medium text-base">{selectedBook.synopsis || "Exploração pedagógica pendente."}</p></div>
+                {selectedBook.ebookUrl ? (<button onClick={() => { setReadingBook(selectedBook); setSelectedBook(null); }} className="group w-full bg-blue-600 text-white font-black py-5 rounded-[1.8rem] flex items-center justify-center gap-3 shadow-xl shadow-blue-500/30 active:scale-95 transition-all"><BookOpen size={20} className="group-hover:scale-110 transition-transform" /> Ler Livro Agora</button>) : <div className="bg-slate-50 p-4 rounded-xl text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] text-center border border-slate-100">Exemplar Físico</div>}
               </div>
             </motion.div>
           </div>
         )}
       </AnimatePresence>
 
-      {/* READER */}
+      {/* READER (Cores Escurecidas para Visibilidade) */}
       <AnimatePresence>
         {readingBook && (
-          <motion.div initial={{ opacity: 0, y: 100 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 100 }} className="fixed inset-0 z-[100] bg-white flex flex-col">
-            <div className="h-16 px-5 border-b border-slate-100 flex items-center justify-between bg-white shadow-sm"><button onClick={() => { setReadingBook(null); setSelectedBook(readingBook); }} className="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center text-slate-900"><ArrowLeft size={20} /></button><div className="text-center overflow-hidden px-4"><h4 className="text-xs font-black text-slate-900 truncate">{readingBook.title}</h4><p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest leading-none">{isEpubFlag(readingBook) ? 'E-Reader EPUB' : 'Visualizador PDF'}</p></div><button onClick={() => readingBook.ebookUrl && window.open(readingBook.ebookUrl, '_blank')} className="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center text-blue-600 disabled:opacity-30" disabled={!readingBook.ebookUrl}><ExternalLink size={18} /></button></div>
-            <div className="flex-1 bg-slate-50 relative">{isEpubFlag(readingBook) ? (<div className="w-full h-full bg-white relative"><ReactReader url={epubData} location={location} locationChanged={(loc) => setLocation(loc)} title={readingBook.title} loadingView={<div className="h-full flex flex-col items-center justify-center gap-4 text-center p-10"><Loader2 className="animate-spin text-blue-600" /> <p className="font-black text-slate-400 uppercase tracking-widest text-[10px]">Carregando da Nuvem...</p></div>} /></div>) : (<iframe src={readingBook.ebookFile ? URL.createObjectURL(readingBook.ebookFile) : getViewerUrl(readingBook.ebookUrl)} className="w-full h-full border-none" title="Reader" />)}</div>
+          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 1.05 }} className="fixed inset-0 z-[100] bg-white flex flex-col">
+            <div className="h-16 px-5 border-b border-slate-100 flex items-center justify-between bg-white z-20"><button onClick={() => { setReadingBook(null); setSelectedBook(readingBook); }} className="w-10 h-10 bg-slate-900 text-white rounded-xl flex items-center justify-center shadow-lg"><ArrowLeft size={20} /></button><div className="text-center overflow-hidden px-4"><h4 className="text-xs font-black text-slate-900 truncate tracking-tight">{readingBook.title}</h4><p className="text-[9px] text-slate-400 font-bold uppercase tracking-[0.3em] leading-none mt-1">{isEpubFlag(readingBook) ? 'E-Reader EPUB' : 'DOC Viewer'}</p></div><button onClick={() => readingBook.ebookUrl && window.open(readingBook.ebookUrl, '_blank')} className="w-10 h-10 bg-slate-100 text-slate-900 rounded-xl flex items-center justify-center border border-slate-200" disabled={!readingBook.ebookUrl}><ExternalLink size={18} /></button></div>
+            <div className="flex-1 bg-white relative">
+               {isEpubFlag(readingBook) ? (<div className="w-full h-full bg-white relative reader-dark-btns"><ReactReader url={epubData} location={location} locationChanged={(loc) => setLocation(loc)} title={readingBook.title} styles={{ arrow: { color: '#000', fontSize: '32px' }, arrowPrev: { left: '10px' }, arrowNext: { right: '10px' } }} loadingView={<div className="h-full flex flex-col items-center justify-center gap-4 text-center p-10"><Loader2 className="animate-spin text-blue-600" /> <p className="font-black text-slate-900/30 uppercase tracking-[0.4em] text-[8px]">Carregando...</p></div>} /></div>) : (<iframe src={readingBook.ebookFile ? URL.createObjectURL(readingBook.ebookFile) : getViewerUrl(readingBook.ebookUrl)} className="w-full h-full border-none" title="Reader" />)}
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* CSS custom para setas do epubjs */}
+      <style dangerouslySetInnerHTML={{ __html: `
+        .reader-dark-btns button { color: #000 !important; filter: brightness(0); opacity: 0.8 !important; }
+        .reader-dark-btns .epub-container { padding-top: 20px; }
+      `}} />
 
       {/* FORM */}
       <AnimatePresence>
         {showModal && (
           <div className="fixed inset-0 z-[80] bg-white sm:bg-slate-950/60 sm:backdrop-blur-md flex items-center justify-center overflow-hidden">
-            <motion.div initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }} className="relative w-full h-full sm:h-auto sm:max-w-xl bg-white sm:rounded-[40px] p-8 overflow-y-auto">
-              <div className="flex items-center justify-between mb-8"><h2 className="text-2xl font-black text-slate-900">Gerenciar Obra</h2><button onClick={() => setShowModal(false)} className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center text-slate-400"><X size={24} /></button></div>
-              <form onSubmit={handleSave} className="space-y-6 pb-20">
-                <div className="grid grid-cols-2 gap-4"><div className="space-y-1"><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Título</label><input required type="text" value={formData.title} onChange={(e) => setFormData({...formData, title: e.target.value})} className="w-full bg-slate-50 rounded-2xl px-5 py-4 outline-none font-bold" /></div><div className="space-y-1"><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Autor</label><input required type="text" value={formData.author} onChange={(e) => setFormData({...formData, author: e.target.value})} className="w-full bg-slate-50 rounded-2xl px-5 py-4 outline-none font-bold" /></div></div>
-                <div className="space-y-4 pt-2 border-t border-slate-100"><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Arquivo (Enviado para Nuvem)</label><div className="bg-slate-50 p-6 rounded-3xl border-2 border-dashed border-slate-200">{formData.ebookFile ? (<div className="flex items-center justify-between bg-blue-600 text-white p-3 rounded-xl shadow-lg"><div className="flex items-center gap-3 overflow-hidden"><FileText size={20} /><p className="text-xs font-black truncate">{formData.ebookFile.name}</p></div><button type="button" onClick={() => setFormData({...formData, ebookFile: null})} className="p-1 hover:bg-white/20 rounded-lg"><X size={16} /></button></div>) : (<div className="space-y-3"><div className="relative group"><input type="file" accept=".epub,.pdf" onChange={(e) => setFormData({...formData, ebookFile: e.target.files[0], format: e.target.files[0].name.toLowerCase().endsWith('.epub') ? 'EPUB' : 'PDF'})} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" /><div className="flex flex-col items-center justify-center gap-2 transition-transform group-active:scale-95"><div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-blue-600 shadow-sm"><FileUp size={24} /></div><p className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Escolher Arquivo</p></div></div><div className="text-center text-[9px] font-bold text-slate-300 uppercase">Ou use link existente abaixo</div><input type="url" value={formData.ebookUrl} onChange={(e) => setFormData({...formData, ebookUrl: e.target.value})} placeholder="URL se já estiver hospedado" className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 outline-none text-xs font-medium focus:border-blue-500/20" /></div>)}</div></div>
-                <div className="flex gap-2">{['PDF', 'EPUB'].map(f => (<button key={f} type="button" onClick={() => setFormData({...formData, format: f})} className={cn("flex-1 py-3 rounded-xl text-[10px] font-black transition-all border-2", formData.format === f ? "bg-slate-900 text-white border-slate-900 shadow-lg" : "bg-white text-slate-400 border-slate-100")}>{f}</button>))}</div>
-                <div className="space-y-1"><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">URL da Capa</label><input type="url" value={formData.coverUrl} onChange={(e) => setFormData({...formData, coverUrl: e.target.value})} className="w-full bg-slate-50 rounded-2xl px-5 py-4 outline-none font-medium text-sm shadow-inner" /></div>
-                <div className="space-y-1"><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Sinopse</label><textarea rows={3} value={formData.synopsis} onChange={(e) => setFormData({...formData, synopsis: e.target.value})} className="w-full bg-slate-50 rounded-2xl px-5 py-4 outline-none font-medium resize-none shadow-inner" /></div>
-                <button type="submit" disabled={isSyncing} className="w-full bg-blue-600 text-white py-5 rounded-[2rem] font-black text-lg shadow-xl shadow-blue-500/20 active:scale-95 transition-all flex items-center justify-center gap-2">{isSyncing ? <Loader2 className="animate-spin" /> : "Publicar para Todos"}</button>
+            <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} className="relative w-full h-full sm:h-auto sm:max-w-xl bg-white sm:rounded-[40px] p-8 overflow-y-auto">
+              <div className="flex items-center justify-between mb-8"><h2 className="text-2xl font-black text-slate-900 tracking-tighter text-left">Publicar Obra</h2><button onClick={() => setShowModal(false)} className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center text-slate-400"><X size={24} /></button></div>
+              <form onSubmit={handleSave} className="space-y-6 pb-20 text-left">
+                <div className="grid grid-cols-2 gap-4"><div className="space-y-1"><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Título</label><input required type="text" value={formData.title} onChange={(e) => setFormData({...formData, title: e.target.value})} className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-5 py-4 outline-none font-bold focus:bg-white focus:border-blue-500 shadow-sm transition-all" /></div><div className="space-y-1"><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Autor</label><input required type="text" value={formData.author} onChange={(e) => setFormData({...formData, author: e.target.value})} className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-5 py-4 outline-none font-bold focus:bg-white focus:border-blue-500 shadow-sm transition-all" /></div></div>
+                <div className="space-y-4 pt-2 border-t border-slate-100"><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Conteúdo Digital</label><div className="bg-slate-50 p-6 rounded-3xl border-2 border-dashed border-slate-200">{formData.ebookFile ? (<div className="flex items-center justify-between bg-slate-900 text-white p-4 rounded-2xl shadow-xl"><div className="flex items-center gap-3 overflow-hidden"><FileText size={20} className="text-blue-400" /><p className="text-xs font-black truncate">{formData.ebookFile.name}</p></div><button type="button" onClick={() => setFormData({...formData, ebookFile: null})} className="p-1 hover:bg-white/20 rounded-lg"><X size={16} /></button></div>) : (<div className="space-y-3"><div className="relative group"><input type="file" accept=".epub,.pdf" onChange={(e) => setFormData({...formData, ebookFile: e.target.files[0], format: e.target.files[0].name.toLowerCase().endsWith('.epub') ? 'EPUB' : 'PDF'})} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" /><div className="flex flex-col items-center justify-center gap-2 transition-transform group-active:scale-95"><div className="w-14 h-14 bg-white rounded-2xl flex items-center justify-center text-blue-600 shadow-sm ring-1 ring-slate-200"><FileUp size={28} /></div><p className="text-[11px] font-black text-slate-500 uppercase tracking-widest">Adicionar Arquivo</p></div></div><div className="text-center text-[9px] font-black text-slate-300 uppercase leading-none opacity-50">ou via link externo</div><input type="url" value={formData.ebookUrl} onChange={(e) => setFormData({...formData, ebookUrl: e.target.value})} placeholder="https://..." className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 outline-none text-xs font-medium focus:border-blue-500/20" /></div>)}</div></div>
+                <div className="grid grid-cols-2 gap-2">{CATEGORIES.filter(c => c !== "Todos").map(f => (<button key={f} type="button" onClick={() => setFormData({...formData, category: f})} className={cn("py-3 rounded-xl text-[10px] font-black transition-all border-2 uppercase tracking-tighter", formData.category === f ? "bg-slate-900 text-white border-slate-900 shadow-lg" : "bg-white text-slate-400 border-slate-100")}>{f}</button>))}</div>
+                <div className="space-y-1"><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Capa (URL)</label><input type="url" value={formData.coverUrl} onChange={(e) => setFormData({...formData, coverUrl: e.target.value})} className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-5 py-4 outline-none font-medium text-xs transition-all focus:bg-white focus:border-blue-500 shadow-sm" /></div>
+                <div className="space-y-1"><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Resumo</label><textarea rows={3} value={formData.synopsis} onChange={(e) => setFormData({...formData, synopsis: e.target.value})} className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-5 py-4 outline-none font-medium resize-none shadow-sm focus:bg-white focus:border-blue-500 transition-all" /></div>
+                <button type="submit" disabled={isSyncing} className="w-full bg-blue-600 text-white py-5 rounded-[2.2rem] font-black text-lg shadow-xl shadow-blue-500/30 active:scale-95 transition-all flex items-center justify-center gap-2">{isSyncing ? <Loader2 className="animate-spin" /> : "Publicar na Nuvem"}</button>
               </form>
             </motion.div>
           </div>
@@ -293,12 +297,12 @@ export default function App() {
         {showLoginModal && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 text-center">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowLoginModal(false)} className="absolute inset-0 bg-slate-950/90 backdrop-blur-xl" />
-            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="relative w-full max-w-xs bg-white rounded-[2.5rem] p-10 shadow-2xl">
-              <div className="w-16 h-16 bg-amber-50 text-amber-600 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-inner"><Key size={32} /></div>
-              <h2 className="text-2xl font-black text-slate-900 mb-6 tracking-tight">Professor Master</h2>
+            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="relative w-full max-w-xs bg-white rounded-[3rem] p-10 shadow-2xl">
+              <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-inner ring-1 ring-blue-100"><Key size={32} /></div>
+              <h2 className="text-2xl font-black text-slate-900 mb-6 tracking-tight">Painel Master</h2>
               <form onSubmit={handleLogin} className="space-y-6">
-                <input autoFocus required type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Senha Master" className={cn("w-full bg-slate-100 border-none rounded-2xl px-5 py-4 outline-none text-center font-bold text-xl", loginError ? "bg-rose-50 text-rose-600" : "")} />
-                <button type="submit" className="w-full bg-slate-900 text-white py-5 rounded-3xl font-black uppercase tracking-widest text-sm shadow-lg active:scale-95 transition-all">Entrar</button>
+                <input autoFocus required type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••" className={cn("w-full bg-slate-50 border border-slate-100 rounded-2xl px-5 py-5 outline-none text-center font-bold text-2xl tracking-[0.5em] focus:bg-white focus:border-blue-500 transition-all shadow-inner", loginError ? "bg-rose-50 border-rose-200 text-rose-600" : "")} />
+                <button type="submit" className="w-full bg-slate-900 text-white py-5 rounded-3xl font-black uppercase tracking-widest text-xs shadow-xl active:scale-95 transition-all">Acessar Sistema</button>
               </form>
             </motion.div>
           </div>
