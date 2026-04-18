@@ -569,6 +569,7 @@ export default function App() {
                     </div>
                   </motion.div>
                 )
+              }
 
               <form onSubmit={handleSave} className="space-y-6 pb-20 text-left">
                 <div className="grid grid-cols-2 gap-4"><div className="space-y-1"><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Título</label><input required type="text" value={formData.title} onChange={(e) => setFormData({...formData, title: e.target.value})} className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-5 py-4 outline-none font-bold focus:bg-white" /></div><div className="space-y-1"><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Autor</label><input required type="text" value={formData.author} onChange={(e) => setFormData({...formData, author: e.target.value})} className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-5 py-4 outline-none font-bold focus:bg-white" /></div></div>
