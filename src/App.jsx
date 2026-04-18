@@ -175,8 +175,10 @@ export default function App() {
   // Web Search States
   const [webSearchQuery, setWebSearchQuery] = useState('');
   const [webResults, setWebResults] = useState([]);
+  const [gutenbergResults, setGutenbergResults] = useState([]);
   const [isSearchingWeb, setIsSearchingWeb] = useState(false);
   const [showWebSearch, setShowWebSearch] = useState(false);
+  const [isDownloadingEpub, setIsDownloadingEpub] = useState(false);
 
   const books = useLiveQuery(() => {
     let query = db.books;
@@ -288,11 +290,18 @@ export default function App() {
     if (!webSearchQuery.trim()) return;
     setIsSearchingWeb(true);
     try {
-      const res = await fetch(`https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(webSearchQuery)}&langRestrict=pt&maxResults=10`);
-      const data = await res.json();
-      setWebResults(data.items || []);
+      // 1. Busca Google Books (Metadados e Capa)
+      const googleRes = await fetch(`https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(webSearchQuery)}&langRestrict=pt&maxResults=8`);
+      const googleData = await googleRes.json();
+      setWebResults(googleData.items || []);
+
+      // 2. Busca Project Gutenberg (Arquivos EPUB Reais)
+      const gutenRes = await fetch(`https://gutendex.com/books/?search=${encodeURIComponent(webSearchQuery)}&languages=pt`);
+      const gutenData = await gutenRes.json();
+      setGutenbergResults(gutenData.results || []);
+
     } catch (error) {
-      console.error("Erro na busca web:", error);
+      console.error("Erro na busca hibrida:", error);
     }
     setIsSearchingWeb(false);
   };
@@ -305,10 +314,45 @@ export default function App() {
       author: info.authors ? info.authors.join(', ') : '',
       synopsis: info.description ? info.description.substring(0, 800) : '',
       coverUrl: info.imageLinks ? info.imageLinks.thumbnail.replace('http:', 'https:') : '',
+      format: 'PDF',
+      ebookUrl: '',
+      ebookFile: null
     });
     setShowWebSearch(false);
     setWebResults([]);
     setWebSearchQuery('');
+  };
+
+  const importGutenbergBook = async (item) => {
+    setIsDownloadingEpub(true);
+    try {
+      const epubUrl = item.formats['application/epub+zip'] || item.formats['application/epub+images'];
+      if (!epubUrl) throw new Error("Link EPUB não encontrado.");
+
+      // Busca Blob do arquivo
+      const response = await fetch(epubUrl.replace('http:', 'https:'));
+      const blob = await response.blob();
+      const file = new File([blob], `${item.title.replace(/\s/g, '_')}.epub`, { type: 'application/epub+zip' });
+
+      setFormData({
+        ...formData,
+        title: item.title || '',
+        author: item.authors ? item.authors.map(a => a.name).join(', ') : '',
+        category: 'Clássicos',
+        synopsis: `Obra do acervo Project Gutenberg. ID: ${item.id}`,
+        coverUrl: item.formats['image/jpeg'] || '',
+        format: 'EPUB',
+        ebookFile: file,
+        ebookUrl: '' 
+      });
+
+      setShowWebSearch(false);
+      setGutenbergResults([]);
+      setWebSearchQuery('');
+    } catch (error) {
+      alert("Erro ao baixar o arquivo EPUB: " + error.message);
+    }
+    setIsDownloadingEpub(false);
   };
 
   const isEpubFlag = (book) => {
@@ -473,27 +517,58 @@ export default function App() {
                     </button>
                   </div>
 
-                  <div className="mt-4 space-y-2 max-h-48 overflow-y-auto pr-1 custom-scrollbar">
-                    {webResults.map((item, idx) => (
-                      <div 
-                        key={idx} 
-                        onClick={() => importWebBook(item)}
-                        className="flex items-center gap-3 p-2 bg-white rounded-xl border border-slate-100 cursor-pointer hover:border-blue-500 transition-all"
-                      >
-                        <img src={item.volumeInfo.imageLinks?.thumbnail} className="w-10 h-14 object-cover rounded-md bg-slate-100" />
-                        <div className="flex-1 min-width-0">
-                          <p className="text-[10px] font-black text-slate-900 truncate">{item.volumeInfo.title}</p>
-                          <p className="text-[9px] font-bold text-slate-400 truncate">{item.volumeInfo.authors?.join(', ')}</p>
+                    <div className="mt-4 space-y-4 max-h-64 overflow-y-auto pr-1 custom-scrollbar">
+                      {isDownloadingEpub && (
+                         <div className="flex flex-col items-center justify-center py-6 bg-blue-50 rounded-2xl border border-blue-100 animate-pulse">
+                            <Loader2 className="animate-spin text-blue-600 mb-2" />
+                            <p className="text-[9px] font-black text-blue-900 uppercase tracking-widest">Baixando arquivo EPUB...</p>
+                         </div>
+                      )}
+
+                      {/* Resultados Gutenberg (Arquivos) */}
+                      {gutenbergResults.length > 0 && (
+                        <div className="space-y-2">
+                           <h4 className="text-[8px] font-black text-emerald-600 uppercase tracking-widest pl-1">Livros com EPUB (Gutenberg)</h4>
+                           {gutenbergResults.map((item, idx) => (
+                              <div key={`g-${idx}`} onClick={() => importGutenbergBook(item)} className="flex items-center gap-3 p-2 bg-emerald-50 rounded-xl border border-emerald-100 cursor-pointer hover:border-emerald-500 transition-all">
+                                <img src={item.formats['image/jpeg']} className="w-10 h-14 object-cover rounded-md bg-slate-100" />
+                                <div className="flex-1 min-width-0">
+                                  <p className="text-[10px] font-black text-slate-900 truncate">{item.title}</p>
+                                  <p className="text-[9px] font-bold text-slate-400 truncate">{item.authors?.map(a => a.name).join(', ')}</p>
+                                </div>
+                                <div className="bg-emerald-500 text-white p-1 rounded-full"><Download size={10} /></div>
+                              </div>
+                           ))}
                         </div>
-                        <Plus size={14} className="text-blue-500 mr-2" />
-                      </div>
-                    ))}
-                    {webResults.length === 0 && !isSearchingWeb && (
-                      <p className="text-[9px] text-center py-4 text-slate-400 font-bold uppercase tracking-widest">Digite e pesquise por livros em pt-br</p>
-                    )}
-                  </div>
-                </motion.div>
-              )}
+                      )}
+
+                      {/* Resultados Google (Metadados) */}
+                      {webResults.length > 0 && (
+                        <div className="space-y-2">
+                           <h4 className="text-[8px] font-black text-indigo-600 uppercase tracking-widest pl-1">Apenas Metadados (Google)</h4>
+                           {webResults.map((item, idx) => (
+                            <div 
+                              key={idx} 
+                              onClick={() => importWebBook(item)}
+                              className="flex items-center gap-3 p-2 bg-white rounded-xl border border-slate-100 cursor-pointer hover:border-blue-500 transition-all"
+                            >
+                              <img src={item.volumeInfo.imageLinks?.thumbnail} className="w-10 h-14 object-cover rounded-md bg-slate-100" />
+                              <div className="flex-1 min-width-0">
+                                <p className="text-[10px] font-black text-slate-900 truncate">{item.volumeInfo.title}</p>
+                                <p className="text-[9px] font-bold text-slate-400 truncate">{item.volumeInfo.authors?.join(', ')}</p>
+                              </div>
+                              <Plus size={14} className="text-blue-500 mr-2" />
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      
+                      {webResults.length === 0 && gutenbergResults.length === 0 && !isSearchingWeb && (
+                        <p className="text-[9px] text-center py-4 text-slate-400 font-bold uppercase tracking-widest">Digite e pesquise por clássicos em pt-br</p>
+                      )}
+                    </div>
+                  </motion.div>
+                )
 
               <form onSubmit={handleSave} className="space-y-6 pb-20 text-left">
                 <div className="grid grid-cols-2 gap-4"><div className="space-y-1"><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Título</label><input required type="text" value={formData.title} onChange={(e) => setFormData({...formData, title: e.target.value})} className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-5 py-4 outline-none font-bold focus:bg-white" /></div><div className="space-y-1"><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Autor</label><input required type="text" value={formData.author} onChange={(e) => setFormData({...formData, author: e.target.value})} className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-5 py-4 outline-none font-bold focus:bg-white" /></div></div>
