@@ -326,11 +326,18 @@ export default function App() {
   const importGutenbergBook = async (item) => {
     setIsDownloadingEpub(true);
     try {
-      const epubUrl = item.formats['application/epub+zip'] || item.formats['application/epub+images'];
+      let epubUrl = item.formats['application/epub+zip'] || item.formats['application/epub+images'];
       if (!epubUrl) throw new Error("Link EPUB não encontrado.");
 
-      // Busca Blob do arquivo
-      const response = await fetch(epubUrl.replace('http:', 'https:'));
+      epubUrl = epubUrl.replace('http:', 'https:');
+      
+      // Uso de um Proxy de CORS para evitar o erro "Failed to Fetch"
+      const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(epubUrl)}`;
+
+      // Busca Blob do arquivo através do proxy
+      const response = await fetch(proxyUrl);
+      if (!response.ok) throw new Error("Erro ao acessar o servidor de livros.");
+      
       const blob = await response.blob();
       const file = new File([blob], `${item.title.replace(/\s/g, '_')}.epub`, { type: 'application/epub+zip' });
 
@@ -350,7 +357,8 @@ export default function App() {
       setGutenbergResults([]);
       setWebSearchQuery('');
     } catch (error) {
-      alert("Erro ao baixar o arquivo EPUB: " + error.message);
+      console.error("Erro no download:", error);
+      alert("Erro ao baixar o arquivo: " + error.message + ". Tente outro livro ou verifique sua conexão.");
     }
     setIsDownloadingEpub(false);
   };
