@@ -172,6 +172,12 @@ export default function App() {
     title: '', author: '', category: 'Clássicos', format: 'PDF', coverUrl: '', synopsis: '', ebookUrl: '', ebookFile: null 
   });
 
+  // Web Search States
+  const [webSearchQuery, setWebSearchQuery] = useState('');
+  const [webResults, setWebResults] = useState([]);
+  const [isSearchingWeb, setIsSearchingWeb] = useState(false);
+  const [showWebSearch, setShowWebSearch] = useState(false);
+
   const books = useLiveQuery(() => {
     let query = db.books;
     if (activeCategory !== "Todos") {
@@ -276,6 +282,33 @@ export default function App() {
     } else {
       setLoginError(true);
     }
+  };
+
+  const handleWebSearch = async () => {
+    if (!webSearchQuery.trim()) return;
+    setIsSearchingWeb(true);
+    try {
+      const res = await fetch(`https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(webSearchQuery)}&langRestrict=pt&maxResults=10`);
+      const data = await res.json();
+      setWebResults(data.items || []);
+    } catch (error) {
+      console.error("Erro na busca web:", error);
+    }
+    setIsSearchingWeb(false);
+  };
+
+  const importWebBook = (item) => {
+    const info = item.volumeInfo;
+    setFormData({
+      ...formData,
+      title: info.title || '',
+      author: info.authors ? info.authors.join(', ') : '',
+      synopsis: info.description ? info.description.substring(0, 800) : '',
+      coverUrl: info.imageLinks ? info.imageLinks.thumbnail.replace('http:', 'https:') : '',
+    });
+    setShowWebSearch(false);
+    setWebResults([]);
+    setWebSearchQuery('');
   };
 
   const isEpubFlag = (book) => {
@@ -398,7 +431,70 @@ export default function App() {
         {showModal && (
           <div className="fixed inset-0 z-[80] bg-white sm:bg-slate-950/60 sm:backdrop-blur-md flex items-center justify-center overflow-hidden">
             <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} className="relative w-full h-full sm:h-auto sm:max-w-xl bg-white sm:rounded-[40px] p-8 overflow-y-auto">
-              <div className="flex items-center justify-between mb-8"><h2 className="text-2xl font-black text-slate-900">Gerenciar Obra</h2><button onClick={() => setShowModal(false)} className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center text-slate-400"><X size={24} /></button></div>
+              <div className="flex items-center justify-between mb-8">
+                <div>
+                  <h2 className="text-2xl font-black text-slate-900">Gerenciar Obra</h2>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Adicione ou edite livros no acervo</p>
+                </div>
+                <button onClick={() => setShowModal(false)} className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center text-slate-400"><X size={24} /></button>
+              </div>
+
+              {!showWebSearch ? (
+                <div className="mb-8">
+                  <button 
+                    type="button"
+                    onClick={() => setShowWebSearch(true)}
+                    className="w-full bg-indigo-50 text-indigo-600 py-4 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 border border-indigo-100 hover:bg-indigo-100 transition-all"
+                  >
+                    <Search size={16} /> Buscar Metadados na Web
+                  </button>
+                </div>
+              ) : (
+                <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="mb-8 bg-slate-50 p-5 rounded-3xl border border-slate-200">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-[10px] font-black text-slate-900 uppercase tracking-widest">Pesquisa Inteligente</h3>
+                    <button onClick={() => setShowWebSearch(false)} className="text-slate-400 p-1"><X size={14} /></button>
+                  </div>
+                  <div className="flex gap-2">
+                    <input 
+                      type="text" 
+                      placeholder="Título ou Autor..."
+                      value={webSearchQuery}
+                      onChange={(e) => setWebSearchQuery(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && handleWebSearch()}
+                      className="flex-1 bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold outline-none ring-blue-500/20 focus:ring-4"
+                    />
+                    <button 
+                      onClick={handleWebSearch}
+                      disabled={isSearchingWeb}
+                      className="bg-slate-900 text-white px-4 rounded-xl flex items-center justify-center"
+                    >
+                      {isSearchingWeb ? <Loader2 size={18} className="animate-spin" /> : <Search size={18} />}
+                    </button>
+                  </div>
+
+                  <div className="mt-4 space-y-2 max-h-48 overflow-y-auto pr-1 custom-scrollbar">
+                    {webResults.map((item, idx) => (
+                      <div 
+                        key={idx} 
+                        onClick={() => importWebBook(item)}
+                        className="flex items-center gap-3 p-2 bg-white rounded-xl border border-slate-100 cursor-pointer hover:border-blue-500 transition-all"
+                      >
+                        <img src={item.volumeInfo.imageLinks?.thumbnail} className="w-10 h-14 object-cover rounded-md bg-slate-100" />
+                        <div className="flex-1 min-width-0">
+                          <p className="text-[10px] font-black text-slate-900 truncate">{item.volumeInfo.title}</p>
+                          <p className="text-[9px] font-bold text-slate-400 truncate">{item.volumeInfo.authors?.join(', ')}</p>
+                        </div>
+                        <Plus size={14} className="text-blue-500 mr-2" />
+                      </div>
+                    ))}
+                    {webResults.length === 0 && !isSearchingWeb && (
+                      <p className="text-[9px] text-center py-4 text-slate-400 font-bold uppercase tracking-widest">Digite e pesquise por livros em pt-br</p>
+                    )}
+                  </div>
+                </motion.div>
+              )}
+
               <form onSubmit={handleSave} className="space-y-6 pb-20 text-left">
                 <div className="grid grid-cols-2 gap-4"><div className="space-y-1"><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Título</label><input required type="text" value={formData.title} onChange={(e) => setFormData({...formData, title: e.target.value})} className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-5 py-4 outline-none font-bold focus:bg-white" /></div><div className="space-y-1"><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Autor</label><input required type="text" value={formData.author} onChange={(e) => setFormData({...formData, author: e.target.value})} className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-5 py-4 outline-none font-bold focus:bg-white" /></div></div>
                 <div className="space-y-4 pt-2 border-t border-slate-100"><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Upload para Nuvem</label><div className="bg-slate-50 p-6 rounded-3xl border-2 border-dashed border-slate-200 text-center">{formData.ebookFile ? (<div className="flex items-center justify-between bg-slate-900 text-white p-4 rounded-2xl shadow-xl"><div className="flex items-center gap-3 overflow-hidden"><FileText size={20} className="text-blue-400" /><p className="text-xs font-black truncate">{formData.ebookFile.name}</p></div><button type="button" onClick={() => setFormData({...formData, ebookFile: null})} className="p-1 hover:bg-white/20 rounded-lg"><X size={16} /></button></div>) : (<div className="relative group flex flex-col items-center"><input type="file" accept=".epub,.pdf" onChange={(e) => setFormData({...formData, ebookFile: e.target.files[0], format: e.target.files[0].name.toLowerCase().endsWith('.epub') ? 'EPUB' : 'PDF'})} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" /><div className="w-14 h-14 bg-white rounded-2xl flex items-center justify-center text-blue-600 shadow-sm ring-1 ring-slate-200 mt-2"><FileUp size={28} /></div><p className="text-[11px] font-black text-slate-500 uppercase tracking-widest mt-2">Escolher Arquivo</p></div>)}</div></div>
